@@ -18,11 +18,11 @@ class MyThread(threading.Thread):
         pass
 
     def run(self):
-        print "starting "+self.name
+        print("starting "+self.name)
         threadLock.acquire() #获取锁（同步）
         print_time(self.name, self.counter, 5)
         threadLock.release() #释放锁
-        print "exit "+self.name
+        print("exit "+self.name)
 
 threadLock = threading.Lock()
 threads = []
@@ -31,7 +31,7 @@ def print_time(threadName, delay, counter):
         if exitFlag:
             (threading.Thread).exit()
         time.sleep(delay)
-        print "%s: %s" % (threadName, time.ctime(time.time()))
+        print("%s: %s" % (threadName, time.ctime(time.time())))
         counter -= 1
 
 if __name__ == "__main__":
@@ -43,4 +43,4 @@ if __name__ == "__main__":
     threads.append(thread2)
     for t in threads:
         t.join()
-    print "exit main thread"
+    print("exit main thread")

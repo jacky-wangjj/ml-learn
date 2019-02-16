@@ -14,22 +14,22 @@ class FileUtils:
 
     def base(self):
         cwd = os.getcwd()
-        print "path:", cwd
+        print("path:", cwd)
         files = os.listdir(cwd)
         for file in files:
-            print file,
+            print(file),
 
     def test(self):
         file = 'test.txt'
         mode = 'w+'
         if not os.path.exists(file):
             fo = open(file, mode)
-            print fo.name, fo.mode, fo.closed
+            print(fo.name, fo.mode, fo.closed)
             fo.write("hello, file")
-            print fo.tell()
+            print(fo.tell())
             fo.seek(0, 0)
             str = fo.readline()
-            print str
+            print(str)
             fo.close()
             os.remove(file)
         return;
