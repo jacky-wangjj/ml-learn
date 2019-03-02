@@ -23,7 +23,7 @@ class NIRFit03:
     # 第1行是光谱数据的不同波长，2-11行是不同浓度的多组光谱数据
     def loadDataSet(fileName):
         numFeat = len(open(fileName).readline().split(',')) - 1
-        print(numFeat)
+        print("数据集维度为：", numFeat)
         dataMat = [];
         labelMat = []
         fr = open(fileName)
@@ -43,11 +43,21 @@ class NIRFit03:
         xArr, yArr = NIRFit03.loadDataSet("dataset2.CSV")
         # 画出数据集光谱各波长对应的吸光度
         NIRFit03().drawNIR(xArr, yArr)
-        # PCA降维，由入参指定降到的维数
-        red_X = NIRFit03().pca_op(xArr, 200)
-        NIRFit03().drawNIR(red_X, yArr)
-        # xMat = np.mat(xArr);
-        xMat = np.mat(red_X);
+        # 画出数据集光谱中每个维度波长吸光度与浓度的关系，n为第几维
+        NIRFit03().drawEachNIR(np.array(xArr), np.array(yArr), 300)
+        # 手动剔除异常数据，删除指定行，画出剔除异常数据后数据集光谱各波长对应的吸光度
+        # xArr = np.delete(np.array(xArr), 1, 0)
+        # yArr = np.delete(np.array(yArr), 1, 0)
+        # NIRFit03().drawNIR(xArr, yArr)
+        # 手动选取维度，画出选取维度后数据集光谱各波长对应的吸光度
+        xArr = np.array(xArr)[:,300:len(xArr[0])]
+        print("选取的维度为：", len(xArr[0]))
+        NIRFit03().drawNIR(xArr, yArr)
+        # PCA降维，由入参指定降到的维数，画出降维后数据集光谱各波长对应的吸光度
+        xArr = NIRFit03().pca_op(xArr, 820)
+        NIRFit03().drawNIR(xArr, yArr)
+        # array转mat
+        xMat = np.mat(xArr);
         yMat = np.mat(yArr).T
         # 拆分集合为训练集合测试集
         x_train, x_test, y_train, y_test = train_test_split(xMat, yMat, test_size=0.2)
@@ -57,12 +67,24 @@ class NIRFit03:
         print('Y test set:\n', y_test)
         return x_train, y_train, x_test, y_test
 
+    # 画出数据集光谱中每个维度波长吸光度与浓度的关系
+    def drawEachNIR(self, xArr, yArr, n):
+        plt.figure()
+        plt.scatter(xArr[:,n], yArr, color='r', label='NIR-C')
+        plt.title('each NIR data')
+        plt.xlabel('absorbance')
+        plt.ylabel('concentration')
+        plt.legend()
+        plt.show()
+
     # 画出数据集光谱各波长对应的吸光度
     def drawNIR(self, xArr, yArr):
         plt.figure()
         for i in range(len(yArr)):
             plt.plot(np.arange(len(xArr[i])), xArr[i], label=yArr[i])
         plt.title('NIR data')
+        plt.xlabel('wavelength')
+        plt.ylabel('absorbance')
         plt.legend()
         plt.show()
 
@@ -81,6 +103,8 @@ class NIRFit03:
         plt.plot(np.arange(len(y_pred)), y_test, 'go-', label='true value')
         plt.plot(np.arange(len(y_pred)), y_pred, 'ro-', label='predict value')
         plt.title('score:%f' % score)
+        plt.xlabel('test index')
+        plt.ylabel('y value')
         plt.legend()
         plt.show()
 
@@ -88,23 +112,28 @@ class NIRFit03:
         pca = PCA(n_components=n, whiten=False, svd_solver='auto')
         pca.fit(xArr)
         red_X = pca.transform(xArr)
-        print("降维后的特征数:", pca.n_components_)
+        print("降维后特征数：", pca.n_components_)
         return red_X
 
     # 测试各种回归算法，输出相关信息
     def try_different_method(self, clf, x_train, y_train, x_test, y_test):
+        if isinstance(clf, svm.SVR) or isinstance(clf, ensemble.RandomForestRegressor)\
+                or isinstance(clf, ensemble.AdaBoostRegressor) or isinstance(clf, ensemble.GradientBoostingRegressor):
+            y_train = np.array(y_train).ravel()
+            y_test = np.array(y_test).ravel()
         model = clf.fit(x_train, y_train)
         print('model: \n', model)
         score = clf.score(x_test, y_test)
         y_pred = clf.predict(x_test)
         print('predict Y: \n', y_pred)
-        # The coefficients
-        coef = clf.coef_
-        print('Coefficients: \n', coef)
-        NIRFit03().drawCoef(coef)
-        # The Intercepts
-        intercept = clf.intercept_
-        print('Intercepts: \n', intercept)
+        if isinstance(clf, linear_model.LinearRegression):
+            # The coefficients
+            coef = clf.coef_
+            print('Coefficients: \n', coef)
+            NIRFit03().drawCoef(coef)
+            # The Intercepts
+            intercept = clf.intercept_
+            print('Intercepts: \n', intercept)
         # score
         print("score: %.4f" % clf.score(x_test, y_test))
         # The mean squared error, 均方差
@@ -118,7 +147,11 @@ class NIRFit03:
         print('Variance score: %.4f' % r2_score(y_test, y_pred))
         # The cross validation
         X = np.vstack((x_train, x_test))
-        Y = np.vstack((y_train, y_test))
+        if isinstance(clf, svm.SVR) or isinstance(clf, ensemble.RandomForestRegressor)\
+                or isinstance(clf, ensemble.AdaBoostRegressor) or isinstance(clf, ensemble.GradientBoostingRegressor):
+            Y = np.hstack((y_train, y_test))
+        else:
+            Y = np.vstack((y_train, y_test))
         scores = cross_val_score(clf, X, Y, cv=int(len(Y)*0.8))
         print("Cross val score: \n", scores)
         print("Mean score: %.4f" % scores.mean())
