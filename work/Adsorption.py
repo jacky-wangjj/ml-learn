@@ -2,67 +2,43 @@
 # -*- coding: utf-8 -*-
 # ------------------------
 # @Author   : wangjj17
-# @File     : NIRFit03
-# @Time     : 2019/2/28
+# @File     : Adsorption
+# @Time     : 2019/3/5
 # ------------------------
+import pandas as pd
 import numpy as np
-from sklearn import linear_model, svm, neighbors, ensemble
-from sklearn.feature_selection import VarianceThreshold, SelectKBest, f_regression
-from sklearn.metrics import mean_squared_error, mean_absolute_error, median_absolute_error, r2_score
-from sklearn.model_selection import train_test_split, cross_val_predict
 import matplotlib.pyplot as plt
+from sklearn import svm, ensemble, linear_model, neighbors
+from sklearn.metrics import mean_squared_error, mean_absolute_error, median_absolute_error, r2_score
+from sklearn.model_selection import train_test_split, cross_val_score, cross_val_predict
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.tree import DecisionTreeRegressor
-from sklearn.model_selection import cross_val_score
-from sklearn.decomposition import PCA
 
-class NIRFit03:
+
+class Adsorption:
     def __init__(self):
         pass
 
-    # 第1列是浓度，2-1558列是不同波长的吸光度
-    # 第1行是光谱数据的不同波长，2-11行是不同浓度的多组光谱数据
+    def drawScatterDiagram(xArr, yArr):
+        plt.figure()
+        plt.scatter(xArr, yArr, color='r', label='point')
+        plt.title('scatter diagram')
+        plt.xlabel('vof')
+        plt.ylabel('concentration')
+        plt.legend()
+        plt.show()
+
     def loadDataSet(fileName):
-        numFeat = len(open(fileName).readline().split(',')) - 1
-        print("数据集维度为：", numFeat)
-        dataMat = [];
-        labelMat = []
-        fr = open(fileName)
-        lineNum = 0
-        for line in fr.readlines():
-            lineArr = []
-            lineNum += 1
-            if (lineNum != 1):
-                curLine = line.strip().split(',')
-                for i in range(1, numFeat + 1):
-                    lineArr.append(float(curLine[i]))
-                dataMat.append(lineArr)
-                labelMat.append(float(curLine[0]))
-        return dataMat, labelMat
+        df = pd.read_excel(fileName)
+        xArr = np.array(df.values)[:,0]
+        yArr = np.array(df.values)[:,1]
+        return xArr, yArr
 
     def get_data(self):
-        xArr, yArr = NIRFit03.loadDataSet("dataset2.CSV")
-        # 画出数据集光谱各波长对应的吸光度
-        NIRFit03().drawNIR(xArr, yArr)
-        # 画出数据集光谱中每个维度波长吸光度与浓度的关系，n为第几维
-        NIRFit03().drawEachNIR(np.array(xArr), np.array(yArr), 300)
-        # 手动剔除异常数据，删除指定行，画出剔除异常数据后数据集光谱各波长对应的吸光度
-        # xArr = np.delete(np.array(xArr), 1, 0)
-        # yArr = np.delete(np.array(yArr), 1, 0)
-        # NIRFit03().drawNIR(xArr, yArr)
-        # 手动选取维度，画出选取维度后数据集光谱各波长对应的吸光度
-        xArr = np.array(xArr)[:,300:len(xArr[0])]
-        print("选取的维度为：", len(xArr[0]))
-        NIRFit03().drawNIR(xArr, yArr)
-        # 特征选择
-        # xArr = NIRFit03().featureSelection(np.array(xArr), np.array(yArr).ravel())
-        # NIRFit03().drawNIR(xArr, yArr)
-        # PCA降维，由入参指定降到的维数，画出降维后数据集光谱各波长对应的吸光度
-        xArr = NIRFit03().pca_op(xArr, 820)
-        # xArr = NIRFit03().pca_op(xArr, 0.99)
-        NIRFit03().drawNIR(xArr, yArr)
+        xArr, yArr = Adsorption.loadDataSet('dynamic-adsorption.xlsx')
+        Adsorption.drawScatterDiagram(xArr, yArr)
         # array转mat
-        xMat = np.mat(xArr);
+        xMat = np.mat(xArr).T;
         yMat = np.mat(yArr).T
         # 拆分集合为训练集合测试集
         x_train, x_test, y_train, y_test = train_test_split(xMat, yMat, test_size=0.2)
@@ -71,27 +47,6 @@ class NIRFit03:
         print('Y train set:\n', y_train)
         print('Y test set:\n', y_test)
         return x_train, y_train, x_test, y_test
-
-    # 画出数据集光谱中每个维度波长吸光度与浓度的关系
-    def drawEachNIR(self, xArr, yArr, n):
-        plt.figure()
-        plt.scatter(xArr[:,n], yArr, color='r', label='NIR-C')
-        plt.title('each NIR data')
-        plt.xlabel('absorbance')
-        plt.ylabel('concentration')
-        plt.legend()
-        plt.show()
-
-    # 画出数据集光谱各波长对应的吸光度
-    def drawNIR(self, xArr, yArr):
-        plt.figure()
-        for i in range(len(yArr)):
-            plt.plot(np.arange(len(xArr[i])), xArr[i], label=yArr[i])
-        plt.title('NIR data')
-        plt.xlabel('wavelength')
-        plt.ylabel('absorbance')
-        plt.legend()
-        plt.show()
 
     # 回归系数的分布直方图，可查看是否能降维
     def drawCoef(self, coef):
@@ -113,24 +68,6 @@ class NIRFit03:
         plt.legend()
         plt.show()
 
-    # 特征选择
-    def featureSelection(self, X, Y):
-        # 方差选择法
-        # X_sel = VarianceThreshold(threshold=0.8).fit_transform(X)
-        # 卡方检验
-        X_sel = SelectKBest(f_regression, k=900).fit_transform(X, Y)
-        print('X shape:\n', X_sel.shape)
-        return X_sel
-
-    # PCA降维
-    def pca_op(self, xArr, n):
-        pca = PCA(n_components=n, whiten=False, svd_solver='auto')
-        pca.fit(xArr)
-        red_X = pca.transform(xArr)
-        print("降维后特征数：", pca.n_components_)
-        print('保留方差百分比：', pca.explained_variance_ratio_.sum())
-        return red_X
-
     # 测试各种回归算法，输出相关信息
     def try_different_method(self, clf, x_train, y_train, x_test, y_test):
         if isinstance(clf, svm.SVR) or isinstance(clf, ensemble.RandomForestRegressor)\
@@ -146,7 +83,7 @@ class NIRFit03:
             # The coefficients
             coef = clf.coef_
             print('Coefficients: \n', coef)
-            NIRFit03().drawCoef(coef)
+            Adsorption().drawCoef(coef)
             # The Intercepts
             intercept = clf.intercept_
             print('Intercepts: \n', intercept)
@@ -174,61 +111,61 @@ class NIRFit03:
         # The cross predict
         print("Cross val predicte:\n", cross_val_predict(clf, X, Y, cv=int(len(Y)*0.9)))
         # the plot
-        NIRFit03().drawPred(y_pred, y_test, score)
+        Adsorption().drawPred(y_pred, y_test, score)
 
     # 回归树
     def DecisionTreeRegressTest(self):
-        x_train, y_train, x_test, y_test = NIRFit03().get_data()
+        x_train, y_train, x_test, y_test = Adsorption().get_data()
         clf = DecisionTreeRegressor()
-        NIRFit03().try_different_method(clf, x_train, y_train, x_test, y_test)
+        Adsorption().try_different_method(clf, x_train, y_train, x_test, y_test)
 
     # 线性回归
     def LinearRegressionTest(self):
-        x_train, y_train, x_test, y_test = NIRFit03().get_data()
+        x_train, y_train, x_test, y_test = Adsorption().get_data()
         linear_reg = linear_model.LinearRegression()
-        NIRFit03().try_different_method(linear_reg, x_train, y_train, x_test, y_test)
+        Adsorption().try_different_method(linear_reg, x_train, y_train, x_test, y_test)
 
     # SVM支持向量机
     def SVMTest(self):
-        x_train, y_train, x_test, y_test = NIRFit03().get_data()
+        x_train, y_train, x_test, y_test = Adsorption().get_data()
         svr = svm.SVR()
-        NIRFit03().try_different_method(svr, x_train, y_train, x_test, y_test)
+        Adsorption().try_different_method(svr, x_train, y_train, x_test, y_test)
 
     # Kmeans
     def KNeighborsRegressorTest(self):
-        x_train, y_train, x_test, y_test = NIRFit03().get_data()
+        x_train, y_train, x_test, y_test = Adsorption().get_data()
         knn = neighbors.KNeighborsRegressor()
-        NIRFit03().try_different_method(knn, x_train, y_train, x_test, y_test)
+        Adsorption().try_different_method(knn, x_train, y_train, x_test, y_test)
 
     # 随机森林
     def RandomForestRegressorTest(self):
-        x_train, y_train, x_test, y_test = NIRFit03().get_data()
+        x_train, y_train, x_test, y_test = Adsorption().get_data()
         rf = ensemble.RandomForestRegressor(n_estimators=20)#使用20个决策树
-        NIRFit03().try_different_method(rf, x_train, y_train, x_test, y_test)
+        Adsorption().try_different_method(rf, x_train, y_train, x_test, y_test)
 
     # Adaboost
     def AdaboostTest(self):
-        x_train, y_train, x_test, y_test = NIRFit03().get_data()
+        x_train, y_train, x_test, y_test = Adsorption().get_data()
         ada = ensemble.AdaBoostRegressor(n_estimators=50)
-        NIRFit03().try_different_method(ada, x_train, y_train, x_test, y_test)
+        Adsorption().try_different_method(ada, x_train, y_train, x_test, y_test)
 
     # GBRT
     def GradientBoostingRegressorTest(self):
-        x_train, y_train, x_test, y_test = NIRFit03().get_data()
+        x_train, y_train, x_test, y_test = Adsorption().get_data()
         gbrt = ensemble.GradientBoostingRegressor(n_estimators=100)
-        NIRFit03().try_different_method(gbrt, x_train, y_train, x_test, y_test)
+        Adsorption().try_different_method(gbrt, x_train, y_train, x_test, y_test)
 
     # 多项式回归
     def PolynominalRegressorTest(self):
-        x_train, y_train, x_test, y_test = NIRFit03().get_data()
+        x_train, y_train, x_test, y_test = Adsorption().get_data()
         featurizer = PolynomialFeatures(degree=2) #degree定义是最高次项
         x_train_featurizer = featurizer.fit_transform(x_train) #fit_transform：正则化
         x_test_featurizer = featurizer.fit_transform(x_test) #fit_transform：正则化
         lr = linear_model.LinearRegression()
-        NIRFit03().try_different_method(lr, x_train_featurizer, y_train, x_test_featurizer, y_test)
+        Adsorption().try_different_method(lr, x_train_featurizer, y_train, x_test_featurizer, y_test)
 
 if __name__ == "__main__":
-    c = NIRFit03()
+    c = Adsorption()
     # c.DecisionTreeRegressTest()
     c.LinearRegressionTest()
     # c.SVMTest()
