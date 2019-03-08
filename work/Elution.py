@@ -68,6 +68,16 @@ class Elution:
         plt.legend()
         plt.show()
 
+    # 画出散点图和拟合曲线
+    def drawFittedCurve(self, clf, featurizer, X, Y):
+        xx = np.linspace(0, 100)
+        xx_quadratic = featurizer.transform(xx.reshape(xx.shape[0], 1))
+        yy = clf.predict(xx_quadratic)
+        plt.figure()
+        plt.plot(X, Y, 'k.')
+        plt.plot(xx, yy)
+        plt.show()
+
     # 测试各种回归算法，输出相关信息
     def try_different_method(self, clf, x_train, y_train, x_test, y_test):
         if isinstance(clf, svm.SVR) or isinstance(clf, ensemble.RandomForestRegressor) \
@@ -156,21 +166,22 @@ class Elution:
         Elution().try_different_method(gbrt, x_train, y_train, x_test, y_test)
 
     # 多项式回归
-    def PolynominalRegressorTest(self):
+    def PolynominalRegressorTest(self, degree):
         x_train, y_train, x_test, y_test = Elution().get_data()
-        featurizer = PolynomialFeatures(degree=2)  # degree定义是最高次项
+        featurizer = PolynomialFeatures(degree=degree)  # degree定义是最高次项
         x_train_featurizer = featurizer.fit_transform(x_train)  # fit_transform：正则化
         x_test_featurizer = featurizer.fit_transform(x_test)  # fit_transform：正则化
         lr = linear_model.LinearRegression()
         Elution().try_different_method(lr, x_train_featurizer, y_train, x_test_featurizer, y_test)
+        Elution().drawFittedCurve(lr, featurizer, np.vstack((x_train, x_test)), np.vstack((y_train, y_test)))
 
 if __name__ == "__main__":
     c = Elution()
     # c.DecisionTreeRegressTest()
-    c.LinearRegressionTest()
+    # c.LinearRegressionTest()
     # c.SVMTest()
     # c.KNeighborsRegressorTest()
-    # c.RandomForestRegressorTest()
+    c.RandomForestRegressorTest()
     # c.AdaboostTest()
     # c.GradientBoostingRegressorTest()
-    # c.PolynominalRegressorTest()
+    # c.PolynominalRegressorTest(11)
