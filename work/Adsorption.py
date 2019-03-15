@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from sklearn import svm, ensemble, linear_model, neighbors
 from sklearn.metrics import mean_squared_error, mean_absolute_error, median_absolute_error, r2_score
 from sklearn.model_selection import train_test_split, cross_val_score, cross_val_predict
-from sklearn.preprocessing import PolynomialFeatures
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 from sklearn.tree import DecisionTreeRegressor
 
 
@@ -42,6 +42,10 @@ class Adsorption:
         yMat = np.mat(yArr).T
         # 拆分集合为训练集合测试集
         x_train, x_test, y_train, y_test = train_test_split(xMat, yMat, test_size=0.2)
+        # 标准化
+        scaler = StandardScaler().fit(x_train)
+        x_train = scaler.transform(x_train)
+        x_test = scaler.transform(x_test)
         print('X train set:\n', x_train)
         print('X test set:\n', x_test)
         print('Y train set:\n', y_train)
@@ -122,6 +126,7 @@ class Adsorption:
         print("Cross val predicte:\n", cross_val_predict(clf, X, Y, cv=int(len(Y)*0.9)))
         # the plot
         Adsorption().drawPred(y_pred, y_test, score)
+        Adsorption().drawPred(clf.predict(X), Y, score)
 
     # 回归树
     def DecisionTreeRegressTest(self):
@@ -141,7 +146,7 @@ class Adsorption:
         svr = svm.SVR()
         Adsorption().try_different_method(svr, x_train, y_train, x_test, y_test)
 
-    # Kmeans
+    # K邻近knn
     def KNeighborsRegressorTest(self):
         x_train, y_train, x_test, y_test = Adsorption().get_data()
         knn = neighbors.KNeighborsRegressor()
@@ -153,13 +158,13 @@ class Adsorption:
         rf = ensemble.RandomForestRegressor(n_estimators=20)#使用20个决策树
         Adsorption().try_different_method(rf, x_train, y_train, x_test, y_test)
 
-    # Adaboost
+    # Adaboost自适应增强
     def AdaboostTest(self):
         x_train, y_train, x_test, y_test = Adsorption().get_data()
         ada = ensemble.AdaBoostRegressor(n_estimators=50)
         Adsorption().try_different_method(ada, x_train, y_train, x_test, y_test)
 
-    # GBRT
+    # GBRT渐进梯度回归树
     def GradientBoostingRegressorTest(self):
         x_train, y_train, x_test, y_test = Adsorption().get_data()
         gbrt = ensemble.GradientBoostingRegressor(n_estimators=100)
