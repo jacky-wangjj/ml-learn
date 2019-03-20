@@ -15,11 +15,13 @@ from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.model_selection import cross_val_score
 from sklearn.decomposition import PCA
+from sklearn.cross_decomposition import PLSRegression
 
 class NIRFit03:
     def __init__(self):
         pass
 
+    fileName = "dataset2.CSV"
     # 第1列是浓度，2-1558列是不同波长的吸光度
     # 第1行是光谱数据的不同波长，2-11行是不同浓度的多组光谱数据
     def loadDataSet(fileName):
@@ -38,39 +40,86 @@ class NIRFit03:
                     lineArr.append(float(curLine[i]))
                 dataMat.append(lineArr)
                 labelMat.append(float(curLine[0]))
-        return dataMat, labelMat
+        # 对数据集中的数据进行排序
+        sort_index = np.argsort(labelMat)
+        # print(sort_index)
+        sort_labelMat = np.array(labelMat)[sort_index]
+        sort_dataMat = np.array(dataMat)[sort_index,:]
+        # print(sort_labelMat)
+        return sort_dataMat, sort_labelMat
 
-    def get_data(self):
-        xArr, yArr = NIRFit03.loadDataSet("dataset2.CSV")
+    # 多元散射校正
+    def multiplicative_scatter_correction(xArr):
+        xArr = np.array(xArr)
+        m,n = xArr.shape
+        print(m,n)
+        xMean = np.mean(xArr, axis=0)
+        print("xArr各波长吸光度均值：\n", xMean)
+        # xArr_msc = xArr.copy()
+        for i in range(1,m):
+            k,b = np.polyfit(xMean, xArr[i,:], 1)
+            # print("回归系数为：\n", k)
+            # print("截距为：\n", b)
+            xArr[i,:] = (xArr[i,:]-b)/k
+        return xArr
+
+    # 相关系数
+    def correlation_coefficient(xArr, yArr):
+        xArr = np.array(xArr)
+        m,n = xArr.shape
+        coef = [0 for x in range(n)]
+        for i in range(n):
+            coef[i] = np.corrcoef(xArr[:,i], yArr)[0,1]
+        print("相关系数：\n", coef)
+        print("最大相关系数：\n", np.max(coef))
+        print("最小相关系数：\n", np.min(coef))
+        coef_index = np.abs(np.array(coef))>0.3
+        # coef_index = np.array(coef)>0.45
+        xArr = xArr[:,coef_index]
+        print("相关系数筛选后的维度：\n", xArr.shape)
+        return xArr
+
+    def get_data(fileName):
+        xArr, yArr = NIRFit03.loadDataSet(fileName)
         # 画出数据集光谱各波长对应的吸光度
-        NIRFit03().drawNIR(xArr, yArr)
+        NIRFit03.drawNIR(xArr, yArr)
         # 画出数据集光谱中每个维度波长吸光度与浓度的关系，n为第几维
-        NIRFit03().drawEachNIR(np.array(xArr), np.array(yArr), 300)
+        # NIRFit03.drawEachNIR(np.array(xArr), np.array(yArr), np.argmax(xArr[0,:]))
         # 手动剔除异常数据，删除指定行，画出剔除异常数据后数据集光谱各波长对应的吸光度
         # xArr = np.delete(np.array(xArr), 1, 0)
         # yArr = np.delete(np.array(yArr), 1, 0)
-        # NIRFit03().drawNIR(xArr, yArr)
+        # NIRFit03.drawNIR(xArr, yArr)
         # 手动选取维度，画出选取维度后数据集光谱各波长对应的吸光度
-        xArr = np.array(xArr)[:,300:len(xArr[0])]
-        print("选取的维度为：", len(xArr[0]))
-        NIRFit03().drawNIR(xArr, yArr)
+        # xArr = np.array(xArr)[:,300:len(xArr[0])]
+        # print("选取的维度为：", len(xArr[0]))
+        # NIRFit03.drawNIR(xArr, yArr)
+        # 多元散射校正
+        xArr = NIRFit03.multiplicative_scatter_correction(xArr)
+        NIRFit03.drawNIR(xArr, yArr)
+        # 画出数据集光谱中每个维度波长吸光度与浓度的关系，n为第几维
+        NIRFit03.drawEachNIR(np.array(xArr), np.array(yArr), np.argmax(xArr[0, :]))
+        # 相关系数选取特征波长
+        xArr = NIRFit03.correlation_coefficient(xArr, yArr)
+        NIRFit03.drawNIR(xArr, yArr)
         # 特征选择
-        # xArr = NIRFit03().featureSelection(np.array(xArr), np.array(yArr).ravel())
-        # NIRFit03().drawNIR(xArr, yArr)
+        # xArr = NIRFit03.featureSelection(np.array(xArr), np.array(yArr).ravel())
+        # NIRFit03.drawNIR(xArr, yArr)
         # PCA降维，由入参指定降到的维数，画出降维后数据集光谱各波长对应的吸光度
-        # xArr = NIRFit03().pca_op(xArr, 820)
-        # xArr = NIRFit03().pca_op(xArr, 0.99)
-        # NIRFit03().drawNIR(xArr, yArr)
+        # xArr = NIRFit03.pca_op(xArr, 820)
+        # xArr = NIRFit03.pca_op(xArr, 0.99)
+        # NIRFit03.drawNIR(xArr, yArr)
         # array转mat
         xMat = np.mat(xArr);
         yMat = np.mat(yArr).T
         # 拆分集合为训练集合测试集
         # x_train, x_test, y_train, y_test = train_test_split(xMat, yMat, test_size=0.2)
         # 固定训练集和测试集
-        x_train = xMat[[0,1,2,3,4,7,8,10,11,12,13,14,16], :]
-        y_train = yMat[[0,1,2,3,4,7,8,10,11,12,13,14,16], :]
-        x_test = xMat[[5,6,9,15], :]
-        y_test = yMat[[5,6,9,15], :]
+        index_train = [0,1,2,4,5,6,7,8,9,11,13,15,16]
+        index_test = [3,10,12,14]
+        x_train = xMat[index_train, :]
+        y_train = yMat[index_train, :]
+        x_test = xMat[index_test, :]
+        y_test = yMat[index_test, :]
         # 标准化
         scaler = StandardScaler().fit(x_train)
         x_train = scaler.transform(x_train)
@@ -82,7 +131,7 @@ class NIRFit03:
         return x_train, y_train, x_test, y_test
 
     # 画出数据集光谱中每个维度波长吸光度与浓度的关系
-    def drawEachNIR(self, xArr, yArr, n):
+    def drawEachNIR(xArr, yArr, n):
         plt.figure()
         plt.scatter(xArr[:,n], yArr, color='r', label='NIR-C')
         plt.title('each NIR data')
@@ -92,7 +141,7 @@ class NIRFit03:
         plt.show()
 
     # 画出数据集光谱各波长对应的吸光度
-    def drawNIR(self, xArr, yArr):
+    def drawNIR(xArr, yArr):
         plt.figure()
         for i in range(len(yArr)):
             plt.plot(np.arange(len(xArr[i])), xArr[i], label=yArr[i])
@@ -103,7 +152,7 @@ class NIRFit03:
         plt.show()
 
     # 回归系数的分布直方图，可查看是否能降维
-    def drawCoef(self, coef):
+    def drawCoef(coef):
         f = plt.figure(figsize=(7, 5))
         ax = f.add_subplot(111)
         ax.hist(coef.T, bins=50, color='b')
@@ -111,7 +160,7 @@ class NIRFit03:
         plt.show()
 
     # 画出测试集预测Y与真实Y的差距
-    def drawPred(self, y_pred, y_test, score):
+    def drawPred(y_pred, y_test, score):
         # the plot
         plt.figure()
         plt.plot(np.arange(len(y_pred)), y_test, 'go-', label='true value')
@@ -123,7 +172,7 @@ class NIRFit03:
         plt.show()
 
     # 特征选择
-    def featureSelection(self, X, Y):
+    def featureSelection(X, Y):
         # 方差选择法
         # X_sel = VarianceThreshold(threshold=0.8).fit_transform(X)
         # 卡方检验
@@ -132,7 +181,7 @@ class NIRFit03:
         return X_sel
 
     # PCA降维
-    def pca_op(self, xArr, n):
+    def pca_op(xArr, n):
         pca = PCA(n_components=n, whiten=False, svd_solver='auto')
         pca.fit(xArr)
         red_X = pca.transform(xArr)
@@ -141,7 +190,7 @@ class NIRFit03:
         return red_X
 
     # 测试各种回归算法，输出相关信息
-    def try_different_method(self, clf, x_train, y_train, x_test, y_test):
+    def try_different_method(clf, x_train, y_train, x_test, y_test):
         if isinstance(clf, svm.SVR) or isinstance(clf, ensemble.RandomForestRegressor)\
                 or isinstance(clf, ensemble.AdaBoostRegressor) or isinstance(clf, ensemble.GradientBoostingRegressor):
             y_train = np.array(y_train).ravel()
@@ -155,7 +204,7 @@ class NIRFit03:
             # The coefficients
             coef = clf.coef_
             print('Coefficients: \n', coef)
-            NIRFit03().drawCoef(coef)
+            NIRFit03.drawCoef(coef)
             # The Intercepts
             intercept = clf.intercept_
             print('Intercepts: \n', intercept)
@@ -183,67 +232,87 @@ class NIRFit03:
         # The cross predict
         print("Cross val predicte:\n", cross_val_predict(clf, X, Y, cv=int(len(Y)*0.9)))
         # the plot
-        NIRFit03().drawPred(y_pred, y_test, score)
-        NIRFit03().drawPred(clf.predict(X), Y, score)
+        NIRFit03.drawPred(y_pred, y_test, score)
+        NIRFit03.drawPred(clf.predict(X), Y, score)
+
+    # 偏最小二乘
+    def PLSRegressionTest(self):
+        x_train, y_train, x_test, y_test = NIRFit03.get_data(NIRFit03.fileName)
+        n_components = 0
+        scores = [0 for x in range(x_train.shape[1])]
+        while n_components < x_train.shape[1]:
+            n_components+=1
+            plsg = PLSRegression(n_components=n_components)
+            plsg.fit(x_train, y_train)
+            scores[n_components-1] = plsg.score(x_test, y_test)
+        xx = np.linspace(1, len(scores), len(scores))
+        plt.figure()
+        plt.plot(xx, scores, 'r-')
+        plt.show()
+        print('scores:\n', scores)
+        # 选取使得score最大的n_components进行最小二乘建模
+        plsg2 = PLSRegression(n_components=np.argmax(scores)+1)
+        NIRFit03.try_different_method(plsg2, x_train, y_train, x_test, y_test)
 
     # 回归树
     def DecisionTreeRegressTest(self):
-        x_train, y_train, x_test, y_test = NIRFit03().get_data()
+        x_train, y_train, x_test, y_test = NIRFit03.get_data(NIRFit03.fileName)
         clf = DecisionTreeRegressor()
-        NIRFit03().try_different_method(clf, x_train, y_train, x_test, y_test)
+        NIRFit03.try_different_method(clf, x_train, y_train, x_test, y_test)
 
     # 线性回归
     def LinearRegressionTest(self):
-        x_train, y_train, x_test, y_test = NIRFit03().get_data()
+        x_train, y_train, x_test, y_test = NIRFit03.get_data(NIRFit03.fileName)
         linear_reg = linear_model.LinearRegression()
-        NIRFit03().try_different_method(linear_reg, x_train, y_train, x_test, y_test)
+        NIRFit03.try_different_method(linear_reg, x_train, y_train, x_test, y_test)
 
     # SVM支持向量机
     def SVMTest(self):
-        x_train, y_train, x_test, y_test = NIRFit03().get_data()
+        x_train, y_train, x_test, y_test = NIRFit03.get_data(NIRFit03.fileName)
         svr = svm.SVR()
-        NIRFit03().try_different_method(svr, x_train, y_train, x_test, y_test)
+        NIRFit03.try_different_method(svr, x_train, y_train, x_test, y_test)
 
     # K邻近knn
     def KNeighborsRegressorTest(self):
-        x_train, y_train, x_test, y_test = NIRFit03().get_data()
+        x_train, y_train, x_test, y_test = NIRFit03.get_data(NIRFit03.fileName)
         knn = neighbors.KNeighborsRegressor()
-        NIRFit03().try_different_method(knn, x_train, y_train, x_test, y_test)
+        NIRFit03.try_different_method(knn, x_train, y_train, x_test, y_test)
 
     # 随机森林
     def RandomForestRegressorTest(self):
-        x_train, y_train, x_test, y_test = NIRFit03().get_data()
+        x_train, y_train, x_test, y_test = NIRFit03.get_data(NIRFit03.fileName)
         rf = ensemble.RandomForestRegressor(n_estimators=20)#使用20个决策树
-        NIRFit03().try_different_method(rf, x_train, y_train, x_test, y_test)
+        NIRFit03.try_different_method(rf, x_train, y_train, x_test, y_test)
 
     # Adaboost自适应增强
     def AdaboostTest(self):
-        x_train, y_train, x_test, y_test = NIRFit03().get_data()
+        x_train, y_train, x_test, y_test = NIRFit03.get_data(NIRFit03.fileName)
         ada = ensemble.AdaBoostRegressor(n_estimators=50)
-        NIRFit03().try_different_method(ada, x_train, y_train, x_test, y_test)
+        NIRFit03.try_different_method(ada, x_train, y_train, x_test, y_test)
 
     # GBRT渐进梯度回归树
     def GradientBoostingRegressorTest(self):
-        x_train, y_train, x_test, y_test = NIRFit03().get_data()
+        x_train, y_train, x_test, y_test = NIRFit03.get_data(NIRFit03.fileName)
         gbrt = ensemble.GradientBoostingRegressor(n_estimators=100)
-        NIRFit03().try_different_method(gbrt, x_train, y_train, x_test, y_test)
+        NIRFit03.try_different_method(gbrt, x_train, y_train, x_test, y_test)
 
     # 多项式回归
     def PolynominalRegressorTest(self):
-        x_train, y_train, x_test, y_test = NIRFit03().get_data()
+        x_train, y_train, x_test, y_test = NIRFit03.get_data(NIRFit03.fileName)
         featurizer = PolynomialFeatures(degree=2) #degree定义是最高次项
         x_train_featurizer = featurizer.fit_transform(x_train) #fit_transform：正则化
         x_test_featurizer = featurizer.fit_transform(x_test) #fit_transform：正则化
         lr = linear_model.LinearRegression()
-        NIRFit03().try_different_method(lr, x_train_featurizer, y_train, x_test_featurizer, y_test)
+        NIRFit03.try_different_method(lr, x_train_featurizer, y_train, x_test_featurizer, y_test)
 
 if __name__ == "__main__":
     c = NIRFit03()
     # c.DecisionTreeRegressTest()
-    c.LinearRegressionTest()
+    # c.LinearRegressionTest()
     # c.SVMTest()
     # c.KNeighborsRegressorTest()
     # c.RandomForestRegressorTest()
     # c.AdaboostTest()
     # c.GradientBoostingRegressorTest()
     # c.PolynominalRegressorTest()
+    c.PLSRegressionTest()
