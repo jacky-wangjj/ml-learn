@@ -16,6 +16,7 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn.model_selection import cross_val_score
 from sklearn.decomposition import PCA
 from sklearn.cross_decomposition import PLSRegression
+import SavitzkyGolay
 
 class NIRFit03:
     def __init__(self):
@@ -63,8 +64,8 @@ class NIRFit03:
             xArr[i,:] = (xArr[i,:]-b)/k
         return xArr
 
-    # 相关系数
-    def correlation_coefficient(xArr, yArr):
+    # 相关系数，K为选择的维度
+    def correlation_coefficient(xArr, yArr, K):
         xArr = np.array(xArr)
         m,n = xArr.shape
         coef = [0 for x in range(n)]
@@ -73,11 +74,21 @@ class NIRFit03:
         print("相关系数：\n", coef)
         print("最大相关系数：\n", np.max(coef))
         print("最小相关系数：\n", np.min(coef))
-        coef_index = np.abs(np.array(coef))>0.3
-        # coef_index = np.array(coef)>0.45
+        # 选取最相关的K个维度
+        coef_index = np.argsort(np.abs(np.array(coef)))[-K:]
         xArr = xArr[:,coef_index]
         print("相关系数筛选后的维度：\n", xArr.shape)
         return xArr
+
+    # SavitzkyGolay平滑滤波
+    # window_size为窗口大小，rank拟合多项式阶次
+    def savitzk_golay(xArr, window_size, rank):
+        xArr = np.array(xArr)
+        m,n = xArr.shape
+        xArr_sg = []
+        for i in range(m):
+            xArr_sg.append(SavitzkyGolay.savgol(xArr[i,:], window_size, rank))
+        return np.array(xArr_sg)
 
     def get_data(fileName):
         xArr, yArr = NIRFit03.loadDataSet(fileName)
@@ -90,16 +101,19 @@ class NIRFit03:
         # yArr = np.delete(np.array(yArr), 1, 0)
         # NIRFit03.drawNIR(xArr, yArr)
         # 手动选取维度，画出选取维度后数据集光谱各波长对应的吸光度
-        # xArr = np.array(xArr)[:,300:len(xArr[0])]
-        # print("选取的维度为：", len(xArr[0]))
-        # NIRFit03.drawNIR(xArr, yArr)
+        xArr = np.array(xArr)[:,20:len(xArr[0])]
+        print("选取的维度为：", len(xArr[0]))
+        NIRFit03.drawNIR(xArr, yArr)
         # 多元散射校正
         xArr = NIRFit03.multiplicative_scatter_correction(xArr)
         NIRFit03.drawNIR(xArr, yArr)
+        # savitzky golay平滑滤波，窗口越大越平滑，但易失真，阶数越低越平滑
+        xArr = NIRFit03.savitzk_golay(xArr, 19, 3)
+        NIRFit03.drawNIR(xArr, yArr)
         # 画出数据集光谱中每个维度波长吸光度与浓度的关系，n为第几维
         NIRFit03.drawEachNIR(np.array(xArr), np.array(yArr), np.argmax(xArr[0, :]))
-        # 相关系数选取特征波长
-        xArr = NIRFit03.correlation_coefficient(xArr, yArr)
+        # 相关系数选取特征波长，选取相关系数绝对值最大的n个维度
+        xArr = NIRFit03.correlation_coefficient(xArr, yArr, 300)
         NIRFit03.drawNIR(xArr, yArr)
         # 特征选择
         # xArr = NIRFit03.featureSelection(np.array(xArr), np.array(yArr).ravel())
@@ -144,7 +158,7 @@ class NIRFit03:
     def drawNIR(xArr, yArr):
         plt.figure()
         for i in range(len(yArr)):
-            plt.plot(np.arange(len(xArr[i])), xArr[i], label=yArr[i])
+            plt.plot(np.arange(len(xArr[i])), xArr[i], '-o', label=yArr[i])
         plt.title('NIR data')
         plt.xlabel('wavelength')
         plt.ylabel('absorbance')
@@ -247,7 +261,7 @@ class NIRFit03:
             scores[n_components-1] = plsg.score(x_test, y_test)
         xx = np.linspace(1, len(scores), len(scores))
         plt.figure()
-        plt.plot(xx, scores, 'r-')
+        plt.plot(xx, scores, 'o-')
         plt.show()
         print('scores:\n', scores)
         # 选取使得score最大的n_components进行最小二乘建模
