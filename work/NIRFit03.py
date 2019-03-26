@@ -187,7 +187,7 @@ class NIRFit03:
 
     # 特征选择
     def featureSelection(X, Y):
-        # 方差选择法
+        # 方差选择法，删除差异小的维度
         # X_sel = VarianceThreshold(threshold=0.8).fit_transform(X)
         # 卡方检验
         X_sel = SelectKBest(f_regression, k=900).fit_transform(X, Y)
@@ -240,7 +240,7 @@ class NIRFit03:
             Y = np.hstack((y_train, y_test))
         else:
             Y = np.vstack((y_train, y_test))
-        scores = cross_val_score(clf, X, Y, cv=int(len(Y)*0.8))
+        scores = cross_val_score(clf, X, Y, scoring="r2", cv=int(len(Y)*0.8))
         print("Cross val score: \n", scores)
         print("Mean score: %.4f" % scores.mean())
         # The cross predict
