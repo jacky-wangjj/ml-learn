@@ -17,6 +17,7 @@ from sklearn.model_selection import cross_val_score
 from sklearn.decomposition import PCA
 from sklearn.cross_decomposition import PLSRegression
 import SavitzkyGolay
+import CaculateR2DesDim
 
 class NIRFit03:
     def __init__(self):
@@ -90,6 +91,12 @@ class NIRFit03:
             xArr_sg.append(SavitzkyGolay.savgol(xArr[i,:], window_size, rank))
         return np.array(xArr_sg)
 
+    # 依次滑动从所有维度中选取step个维度计算R2，选取最好的n个
+    def CaculateR2DesDim(x_train, y_train, x_test, y_test, step, n):
+        plsg = PLSRegression(n_components=step)
+        x_train, x_test = CaculateR2DesDim.caculateR2(x_train, y_train, x_test, y_test, plsg, step, n)
+        return x_train, x_test
+
     def get_data(fileName):
         xArr, yArr = NIRFit03.loadDataSet(fileName)
         # 画出数据集光谱各波长对应的吸光度
@@ -101,9 +108,9 @@ class NIRFit03:
         # yArr = np.delete(np.array(yArr), 1, 0)
         # NIRFit03.drawNIR(xArr, yArr)
         # 手动选取维度，画出选取维度后数据集光谱各波长对应的吸光度
-        xArr = np.array(xArr)[:,20:len(xArr[0])]
-        print("选取的维度为：", len(xArr[0]))
-        NIRFit03.drawNIR(xArr, yArr)
+        # xArr = np.array(xArr)[:,20:len(xArr[0])]
+        # print("选取的维度为：", len(xArr[0]))
+        # NIRFit03.drawNIR(xArr, yArr)
         # 多元散射校正
         xArr = NIRFit03.multiplicative_scatter_correction(xArr)
         NIRFit03.drawNIR(xArr, yArr)
@@ -113,8 +120,8 @@ class NIRFit03:
         # 画出数据集光谱中每个维度波长吸光度与浓度的关系，n为第几维
         NIRFit03.drawEachNIR(np.array(xArr), np.array(yArr), np.argmax(xArr[0, :]))
         # 相关系数选取特征波长，选取相关系数绝对值最大的n个维度
-        xArr = NIRFit03.correlation_coefficient(xArr, yArr, 300)
-        NIRFit03.drawNIR(xArr, yArr)
+        # xArr = NIRFit03.correlation_coefficient(xArr, yArr, 300)
+        # NIRFit03.drawNIR(xArr, yArr)
         # 特征选择
         # xArr = NIRFit03.featureSelection(np.array(xArr), np.array(yArr).ravel())
         # NIRFit03.drawNIR(xArr, yArr)
@@ -134,10 +141,14 @@ class NIRFit03:
         y_train = yMat[index_train, :]
         x_test = xMat[index_test, :]
         y_test = yMat[index_test, :]
+        # 滑动计算R2，选取维度
+        # x_train, x_test = NIRFit03.CaculateR2DesDim(np.array(x_train), np.array(y_train), np.array(x_test), np.array(y_test), 2, 75)
         # 标准化
         scaler = StandardScaler().fit(x_train)
         x_train = scaler.transform(x_train)
         x_test = scaler.transform(x_test)
+        # 滑动计算R2，选取维度,2,20
+        x_train, x_test = NIRFit03.CaculateR2DesDim(np.array(x_train), np.array(y_train), np.array(x_test), np.array(y_test), 2, 20)
         print('X train set:\n', x_train)
         print('X test set:\n', x_test)
         print('Y train set:\n', y_train)
